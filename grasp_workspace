@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<configuration>
+ <plugins>
+  <plugin ppath="/home/ubuntu/Documents/Robotics/Grip_test/lib/libmyplugin.so"/>
+ </plugins>
+ <dockWidgetStatus>
+  <dockWidget name="Object Explorer" isChecked="1"/>
+  <dockWidget name="Inspector" isChecked="1"/>
+  <dockWidget name="Visualization" isChecked="1"/>
+  <dockWidget name="" isChecked="0"/>
+  <dockWidget name="Edit and Clear Tab" isChecked="1"/>
+ </dockWidgetStatus>
+ <scene spath="/home/ubuntu/Documents/Robotics/kore/etc/scenes/14-World-Robot-Table.urdf"/>
+ <size width="860" height="700"/>
+ <Location>
+  <dockWidgetLocation isFloating="0" location="8" name="Visualization"/>
+  <dockWidgetLocation isFloating="0" location="8" name="Edit and Clear Tab"/>
+  <dockWidgetLocation isFloating="0" location="2" name="Object Explorer"/>
+  <dockWidgetLocation isFloating="0" location="8" name="Inspector"/>
+ </Location>
+</configuration>
+

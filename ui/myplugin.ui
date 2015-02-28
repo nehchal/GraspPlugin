@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Edit and Clear Tab</string>
+   <string>Grasp</string>
   </property>
   <widget class="QWidget" name="dockWidgetContents">
    <layout class="QHBoxLayout" name="horizontalLayout">
@@ -23,9 +23,9 @@
      </widget>
     </item>
     <item>
-     <widget class="QPushButton" name="pushButtonAdd">
+     <widget class="QPushButton" name="testButton">
       <property name="text">
-       <string>Add Value</string>
+       <string>Test</string>
       </property>
      </widget>
     </item>

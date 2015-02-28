@@ -66,11 +66,11 @@ namespace Krang {
 
 /* Converts a 4x4 homogeneous transform to a 6D euler with the given order for RPY.
  * T : [IN] 4x4 homogeneous transfrom matrix 
- * returns 6-vector representing pose */
+ * returns 6-vector representing pose (x, y, z, roll, pitch, yaw) */
 Eigen::VectorXd transformToEuler(const Eigen::Isometry3d &T);
 
 /* Converts a 6D euler to a 4x4 homogeneous transform with the given order for RPY.
- * V : [IN] 6-vector representing pose
+ * V : [IN] 6-vector representing pose (x, y, z, roll, pitch, yaw)
  * returns 4x4 homogeneous transfrom matrix  */
 Eigen::Isometry3d eulerToTransform(const Eigen::VectorXd &V);
 
@@ -84,11 +84,11 @@ enum Side {
 /* ******************************************************************************************** */
 // IDs for the dart kinematic structure
 
-extern std::vector <int> base_ids;					///< Ids for the lower body (x,y,th,imu,waist)
-extern std::vector <int> kinect_ids;				///< Ids for the motors that control kinect
-extern std::vector <int> left_arm_ids;			///< Ids for left arm 
-extern std::vector <int> right_arm_ids;			///< Ids for right arm
-extern std::vector <int> imuWaist_ids;			///< Ids for waist/imu
+extern std::vector <int> base_ids;			///< Ids for the lower body (x,y,th,imu,waist)
+extern std::vector <int> kinect_ids;		///< Ids for the motors that control kinect
+extern std::vector <int> left_arm_ids;		///< Ids for left arm 
+extern std::vector <int> right_arm_ids;		///< Ids for right arm
+extern std::vector <int> imuWaist_ids;		///< Ids for waist/imu
 extern std::vector <int> dart_root_dof_ids; ///< Ids for the root position/orientation dofs in DART
 
 /* ******************************************************************************************** */

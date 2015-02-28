@@ -46,10 +46,13 @@
 #define MYPLUGIN_H
 
 #include "ui_myplugin.h"
+
 #include <grip/qtWidgets/GripTab.h>
 #include <grip/osgGolems/ViewerWidget.h>
 #include <grip/qtWidgets/TreeViewReturn.h>
 #include <math.h>
+
+#include "../src/WorkspaceControl.hpp"
 
 
 class MyPlugin : public GripTab
@@ -75,15 +78,18 @@ public:
 
 private:
     Ui::MyPluginTab *ui;
+    Krang::WorkspaceControl* wsControl;
     
     private slots:
 
-        // private:
     void printRobotInfo();
-    void getLGripperPos(Eigen::VectorXd &xRel);
+    void getLGripperPos(Eigen::Vector6d x, Krang::Vector7d q);
+    void moveArm(const Eigen::VectorXd qDot, float t) ;
     void graspInit();
     void moveToWaypoint(const Eigen::VectorXd &xRel);
     void grasp(const Eigen::VectorXd &x);
+
+    // unit test functions
 
     void addValue();
     void reduceValue();
@@ -96,4 +102,4 @@ private:
 
 };
 
-#endif // EXAMPLE1_H
+#endif // MYPLUGIN_H

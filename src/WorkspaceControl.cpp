@@ -47,7 +47,7 @@ namespace Krang {
 
 	/* ******************************************************************************************** */
 	// WorkspaceControl::WorkspaceControl (dart::dynamics::Skeleton* robot, Side side, 
-	WorkspaceControl::WorkspaceControl (dart::dynamics::BodyNode* endEffector, Side side,
+	WorkspaceControl::WorkspaceControl (dart::dynamics::BodyNode* endEffector,
 	                                    double _K_posRef_p, double _nullspace_gain, double _damping_gain, 
 	                                    double _ui_translation_gain, double _ui_orientation_gain,
 	                                    double _compliance_translation_gain, double _compliance_orientation_gain) {
@@ -55,7 +55,6 @@ namespace Krang {
 		// Determine the end-effector and the arm indices based on the input side
 		//endEffector = robot->getBodyNode((side == LEFT) ? "lGripper" : "rGripper");
 		this->endEffector = endEffector;
-		arm_ids = (side == LEFT) ? (&left_arm_ids) : (&right_arm_ids);
 		Tref = endEffector->getWorldTransform();
 	
 		// Set the gains for control
@@ -78,12 +77,17 @@ namespace Krang {
 	}
 
 	/* ******************************************************************************************** */
-	void WorkspaceControl::setReferencePose(const Eigen::VectorXd& xRef){
+	void WorkspaceControl::setReferencePose(const Eigen::Vector6d& xRef){
+		std::cout<<__LINE__<<": I am inside "<<__func__<<"()"<<std::endl;
+		std::cout<<__LINE__<<": xRef = "<<xRef.transpose()<<std::endl;
 		Tref = eulerToTransform(xRef);
+		std::cout<<__LINE__<<": Tref = "<<transformToEuler(Tref).transpose()<<std::endl;
+		//DISPLAY_MATRIX(Tref.matrix())
+		return;
 	}
 
 	/* ******************************************************************************************** */
-	void WorkspaceControl::integrateWSVelocityInput(const Eigen::VectorXd& xdot, const double dt) {
+	void WorkspaceControl::integrateWSVelocityInput(const Eigen::Vector6d& xdot, const double dt) {
 
 		// Represent the workspace velocity input as a 4x4 homogeneous matrix
 		// Eigen::Matrix4d xdotM = eulerToTransform(xdot * dt);
@@ -103,15 +107,26 @@ namespace Krang {
 	}
 
 	/* ******************************************************************************************** */
-	void WorkspaceControl::refWSVelocity(Eigen::VectorXd& xdot) {
+	void WorkspaceControl::refWSVelocity(Eigen::Vector6d& xdot) {
+		std::cout<<__LINE__<<": I am inside "<<__func__<<"()"<<std::endl;
+
+		std::cout<<"Tref = " <<transformToEuler(Tref).transpose()<<std::endl;
+		//DISPLAY_MATRIX(Tref.matrix())
 
 		// Get the current end-effector transform and also, just its orientation 
 		// Eigen::Matrix4d Tcur = endEffector->getWorldTransform();
 		Eigen::Isometry3d Tcur = endEffector->getWorldTransform();
+
+		std::cout<<"Tcur = "<<transformToEuler(Tcur).transpose()<<std::endl;
+		DISPLAY_MATRIX(Tcur.matrix())
+
 		//Eigen::Matrix4d Rcur = Tcur;
 		Eigen::Isometry3d Rcur = Tcur;
 		//Rcur.topRightCorner<3,1>().setZero();
-		Rcur.linear().setZero();
+		Rcur.translation().setZero();
+
+		std::cout<<"Rcur = "<<std::endl;
+		DISPLAY_MATRIX(Rcur.matrix())
 
 		// Apply the similarity transform to the displacement between current transform and reference
 		//Eigen::Matrix4d Tdisp = Tcur.inverse() * Tref;
@@ -121,37 +136,88 @@ namespace Krang {
 		xdot = transformToEuler(xdotM) * K_posRef_p;
 	}
 
-	/* ******************************************************************************************** */
-	void WorkspaceControl::WSToJSVelocity(const Eigen::VectorXd& xdot,
-	                                     const Eigen::VectorXd& qdot_nullspace, Eigen::VectorXd& qdot) {
+	void WorkspaceControl::JSToWSVelocity(const Krang::Vector7d& qDot, 
+														Eigen::Vector6d& xDot){
+		dart::math::Jacobian JFull= endEffector->getWorldJacobian();	// this is 6 x 15 matrix
+		dart::math::Jacobian J = JFull.topRightCorner<6, 7>();
 
+		xDot = J * qDot;
+
+		return;
+	}
+
+	/* ******************************************************************************************** */
+	void WorkspaceControl::WSToJSVelocity(const Eigen::Vector6d& xdot,
+	                                     	const Krang::Vector7d& qdot_nullspace, 
+	                                     		Krang::Vector7d& qdot) {
 		// Get the Jacobian for the end-effector
 		//Eigen::MatrixXd Jlin = endEffector->getJacobianLinear().topRightCorner<3,7>();
 		//Eigen::MatrixXd Jang = endEffector->getJacobianAngular().topRightCorner<3,7>();
 		//Eigen::MatrixXd J (6,7);
 		//J << Jlin, Jang;
-		dart::math::Jacobian J = endEffector->getWorldJacobian();
+		//dart::math::Jacobian J = endEffector->getBodyJacobian();
+		//std::cout<<__LINE__<<" rows in Bopdy Jacobian= "<<J.rows()<<" cols ="<<J.cols()<<std::endl;
+		//std::cout<<"Body Jacobian ="<<std::endl;
+		//DISPLAY_MATRIX(J)
+
+		dart::math::Jacobian JFull= endEffector->getWorldJacobian();	// this is 6 x 15 matrix
+		dart::math::Jacobian J = JFull.topRightCorner<6, 7>();
+		//dart::math::Jacobian J = JFull.topLeftCorner<6, 7>();
+		
+		// std::cout<<__LINE__<<" rows in World Jacobian= "<<J.rows()<<" cols ="<<J.cols()<<std::endl;
+		std::cout<<"World Jacobian ="<<std::endl;
+		DISPLAY_MATRIX(J)
+		/*
+		int n = endEffector->getNumDependentDofs();
+		std::cout<<"Num of dependent dofs = "<<n<<std::endl;
+
+		std::cout<<"indexes of dependent dofs are: ";
+		for (int i=0; i<n; i++)
+			std::cout<<endEffector->getDependentDof(i)<<" ";
+		std::cout<<std::endl;
+
+		std::cout << "DOF from effector: \n";
+    	dart::dynamics::BodyNode* parent = endEffector;
+    	while (parent != NULL) {
+    	    std::cout << "Node name: " << parent->getName() << ", idx: " << parent->getSkeletonIndex() << std::endl;
+    	    parent = parent->getParentBodyNode();
+    	}
+    	*/
 
 		// Compute the inverse of the Jacobian with dampening
 		Eigen::MatrixXd Jt = J.transpose();
-		Eigen::MatrixXd JJt = J * Jt;
-		for(int i = 0; i < JJt.rows(); i++) JJt(i,i) += damping_gain;
-		Eigen::MatrixXd JJtinv = JJt;
-		aa_la_inv(6, JJtinv.data());
-		Eigen::MatrixXd Jinv = Jt * JJtinv;
+		Eigen::MatrixXd JtJ = Jt * J;
+		std::cout<<"Jt * J ="<<std::endl;
+		DISPLAY_MATRIX(JtJ)
+
+		for(int i = 0; i < JtJ.rows(); i++) JtJ(i,i) += damping_gain;
+
+		//Eigen::MatrixXd JJtinv = JJt;
+		//aa_la_inv(6, JJtinv.data());
+		//Eigen::MatrixXd Jinv = Jt * JJtinv;
+		Eigen::MatrixXd JtJ_inv = JtJ.inverse();
+		std::cout<<"Inv(JJt) ="<<std::endl;
+		DISPLAY_MATRIX(JtJ_inv);
+
+		Eigen::MatrixXd Jinv = JtJ_inv * Jt;
+		std::cout<<"Inverse Jacobian ="<<std::endl;
+		DISPLAY_MATRIX(Jinv)
 
 		// Compute the joint velocities qdot using the input xdot and a qdot for the secondary goal 
 		// projected into the nullspace
-		Eigen::MatrixXd JinvJ = Jinv*J;
-		Eigen::MatrixXd I = Eigen::MatrixXd::Identity(7,7);
+		///Eigen::MatrixXd JinvJ = Jinv*J;
+		///Eigen::MatrixXd I = Eigen::MatrixXd::Identity(7,7);
+		
 		Eigen::VectorXd qdot_jacobian_pure = Jinv * xdot;
-		Eigen::VectorXd qdot_jacobian_null = (I - JinvJ) * qdot_nullspace * nullspace_gain;
-		qdot = qdot_jacobian_pure + qdot_jacobian_null;
+		///Krang::Vector7d qdot_jacobian_null = (I - JinvJ) * qdot_nullspace * nullspace_gain;
+		///qdot = qdot_jacobian_pure + qdot_jacobian_null;
+		qdot = qdot_jacobian_pure;
+		return;
 	}
 
 	/* ******************************************************************************************** */
-	void WorkspaceControl::updateFromXdot (const Eigen::VectorXd& xdot, const Eigen::VectorXd& ft, 
-	                                       const Eigen::VectorXd& qdot_secondary, double dt, Eigen::VectorXd& qdot) {
+	void WorkspaceControl::updateFromXdot (const Eigen::Vector6d& xdot, const Eigen::Vector6d& ft, 
+	                                       const Krang::Vector7d& qdot_secondary, double dt, Krang::Vector7d& qdot) {
 
 		// Move the workspace references around from that ui input
 		integrateWSVelocityInput(xdot, dt);
@@ -162,7 +228,7 @@ namespace Krang {
 		xdot_comply.bottomLeftCorner<3,1>() = -ft.bottomLeftCorner<3,1>() * compliance_orientation_gain;
 
 		// Get an xdot out of the P-controller that's trying to drive us to the refernece position
-		Eigen::VectorXd xdot_posref;
+		Eigen::Vector6d xdot_posref;
 		refWSVelocity(xdot_posref);
 
 		// Combine the velocities from the workspace position goal, the ui, and the compliance
@@ -190,8 +256,8 @@ namespace Krang {
 	}
 
 	/* ******************************************************************************************** */
-	void WorkspaceControl::updateFromUIVel(const Eigen::VectorXd& ui, const Eigen::VectorXd& ft, 
-	                                       const Eigen::VectorXd& qdot_secondary, double dt, Eigen::VectorXd& qdot) {
+	void WorkspaceControl::updateFromUIVel(const Eigen::Vector6d& ui, const Eigen::Vector6d& ft, 
+	                                       const Krang::Vector7d& qdot_secondary, double dt, Krang::Vector7d& qdot) {
 
 		// turn our ui velocity input into a real velocity in workspace
 		Eigen::VectorXd xdot_ui = this->uiInputVelToXdot(ui);
@@ -201,7 +267,7 @@ namespace Krang {
 	}
 
 	/* ******************************************************************************************** */
-	Eigen::VectorXd WorkspaceControl::uiInputVelToXdot(const Eigen::VectorXd& ui_vel) {
+	Eigen::Vector6d WorkspaceControl::uiInputVelToXdot(const Eigen::Vector6d& ui_vel) {
 		// Scale the ui input to get a workspace velocity 
 		Eigen::VectorXd xdot_ui = ui_vel;
 		xdot_ui.topLeftCorner<3,1>() *= ui_translation_gain;
@@ -211,8 +277,8 @@ namespace Krang {
 
 
 	/* ******************************************************************************************** */
-	void WorkspaceControl::updateFromUIPos(const Eigen::VectorXd& xref, const Eigen::VectorXd& ft,
-	                                       const Eigen::VectorXd& qdot_secondary, Eigen::VectorXd& qdot) {
+	void WorkspaceControl::updateFromUIPos(const Eigen::Vector6d& xref, const Eigen::Vector6d& ft,
+	                                       const Krang::Vector7d& qdot_secondary, Krang::Vector7d& qdot) {
 		// update our workspace reference
 		this->Tref = eulerToTransform(xref);
 
@@ -222,7 +288,7 @@ namespace Krang {
 		xdot_comply.bottomLeftCorner<3,1>() = -ft.bottomLeftCorner<3,1>() * compliance_orientation_gain;
 
 		// Get an xdot out of the P-controller that's trying to drive us to the refernece position
-		Eigen::VectorXd xdot_posref;
+		Eigen::Vector6d xdot_posref;
 		refWSVelocity(xdot_posref);
 		
 		// Combine the velocities from the workspace position goal, the ui, and the compliance

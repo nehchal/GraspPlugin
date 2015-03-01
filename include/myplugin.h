@@ -54,7 +54,6 @@
 
 #include "../src/WorkspaceControl.hpp"
 
-
 class MyPlugin : public GripTab
 {
     Q_OBJECT
@@ -83,14 +82,18 @@ private:
     private slots:
 
     void printRobotInfo();
-    void getLGripperPos(Eigen::Vector6d x, Krang::Vector7d q);
+    void getLGripperPos(Eigen::Vector6d &x, Krang::Vector7d &q);
     void moveArm(const Eigen::VectorXd qDot, float t) ;
     void graspInit();
-    void moveToWaypoint(const Eigen::VectorXd &xRel);
+    void moveToWaypoint(const Eigen::Vector6d &xRel);
     void grasp(const Eigen::VectorXd &x);
 
     // unit test functions
-
+    void test_moveArm();
+    void test_getLGripperPos();
+    void test_moveToWaypoint();
+    void test_WSToJSVelocity();
+    
     void addValue();
     void reduceValue();
     void continuousValue();
@@ -98,7 +101,8 @@ private:
     void moveLeftArm();
     void setKrangStartConfig();
     const Eigen::VectorXd& refJSVelocity(const Eigen::VectorXd& xdot,
-                                         const Eigen::VectorXd& qdot_nullspace, Eigen::VectorXd& qdot);
+                                         const Eigen::VectorXd& qdot_nullspace,
+                                         Eigen::VectorXd& qdot);
 
 };
 

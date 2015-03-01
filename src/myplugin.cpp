@@ -54,12 +54,16 @@
 #include <math.h>
 #include <Eigen/Dense>
 
+#include <stdio.h>
+#include <stdlib.h>
+
 #define DEG2RAD(x) x*3.1415/180
 
  // initializers for the workspace control constants
 const double K_WORKERR_P = 1.00;
 const double NULLSPACE_GAIN = 0.1;
 const double DAMPING_GAIN = 0.005;
+//const double DAMPING_GAIN = 0.000;
 const double SPACENAV_ORIENTATION_GAIN = 0.50; // maximum 50 cm per second from spacenav
 const double SPACENAV_TRANSLATION_GAIN = 0.25; // maximum .25 radians per second from spacenav
 const double COMPLIANCE_TRANSLATION_GAIN = 1.0 / 750.0;
@@ -81,13 +85,17 @@ MyPlugin::MyPlugin(QWidget *parent) : ui(new Ui::MyPluginTab){
     //         this, SLOT(seeRobotInfo()) );
     */
 
+    //connect( ui->testButton, SIGNAL(released()), this, SLOT(test_moveArm()) );
+    //connect( ui->testButton, SIGNAL(released()), this, SLOT(test_getLGripperPos()) );
+    connect( ui->testButton, SIGNAL(released()), this, SLOT(test_WSToJSVelocity()) );
+    //connect( ui->testButton, SIGNAL(released()), this, SLOT(test_moveToWaypoint()) );
+     
     connect( ui->seeRobotInfoButton, SIGNAL(released()),
              this, SLOT(printRobotInfo()) );    
     connect( ui->pushButtonMoveLeftArm, SIGNAL(released()),
 	     this, SLOT(moveLeftArm()) );
     connect( ui->graspButton, SIGNAL(released()),
-         this, SLOT(graspInit()) );
-    
+         this, SLOT(graspInit()) );  
 }
 
 MyPlugin::~MyPlugin(){}
@@ -107,37 +115,14 @@ void MyPlugin::GRIPEventSimulationStop(){}
 void MyPlugin::GRIPEventSceneLoaded() {
     std::cout<<__LINE__<<": I am inside "<<__func__<<"()"<<std::endl;
 
-    // Get GolemHubo skeleton
-    /*
-    dart::dynamics::Skeleton* skel = _world->getSkeleton("tetrapak");
-
-    if (skel) {
-        // Get index of LSP (left shoulder pitch
-        std::vector<int> index(1);
-        index[0] = skel->getJoint("LSP")->getGenCoord(0)->getSkeletonIndex();
-
-        // Initialize joint value for LSP
-        Eigen::VectorXd jointValue(1);
-
-        // Move joint around
-        for (size_t i = 0; i < 200; ++i) {
-            // Set joint value
-            jointValue[0] = float(i) * 2 * M_PI / 200;
-            skel->setConfig(index, jointValue);
-
-            // Save world to timeline
-            _timeline->push_back(GripTimeslice(*_world));
-        }
-    } else {
-        std::cerr << "No skeleton named lwa4" << std::endl;
-    }
-    */
     dart::dynamics::Skeleton* robotSkeleton = _world->getSkeleton("Krang");
     wsControl = new Krang::WorkspaceControl(
-                        robotSkeleton->getBodyNode("lGripper"), Krang::LEFT,
+                        robotSkeleton->getBodyNode("lGripper"),
                         K_WORKERR_P, NULLSPACE_GAIN, DAMPING_GAIN, 
                         SPACENAV_TRANSLATION_GAIN, SPACENAV_ORIENTATION_GAIN,
                         COMPLIANCE_TRANSLATION_GAIN, COMPLIANCE_ORIENTATION_GAIN);
+
+    Eigen::VectorXd qDot(7);
     return;
 }
 
@@ -187,6 +172,8 @@ void MyPlugin::printRobotInfo() {
     std::cout<<__LINE__<<"I am inside "<<__func__<<"()"<<std::endl;
 
     dart::dynamics::Skeleton *robotSkeleton = _world->getSkeleton("Krang");
+    dart::dynamics::BodyNode *bodyNode;
+    dart::dynamics::Joint *joint;
 
     Eigen::VectorXd cfg = robotSkeleton->getConfig();
     Eigen::VectorXd cfg1 = _world->getState();
@@ -194,10 +181,17 @@ void MyPlugin::printRobotInfo() {
     std::cout<<"Robot configuration:"<<cfg.transpose()<<std::endl;
     std::cout<<"world state\n"<<cfg1.transpose()<<std::endl;
 
-    // print the names of body nodes
-    std::cout << "Full skeleton names: \n";
+    // print the names and indexes of body nodes (links)
+    std::cout << "Full body nodes names in the robot skeleton: \n";
     for (int i=0; i < robotSkeleton->getNumBodyNodes(); i++) {
-        std::cout << "idx: " << robotSkeleton->getBodyNode(i)->getSkeletonIndex() << ", name: " << robotSkeleton->getBodyNode(i)->getName() << std::endl;
+        bodyNode = robotSkeleton->getBodyNode(i);
+        std::cout << "idx: "<<bodyNode->getSkeletonIndex()
+                    << ", name: " << bodyNode->getName() << std::endl;
+
+        joint = bodyNode->getParentJoint();
+        std::cout<<"  joint idx: "<<joint->getSkeletonIndex()
+                    <<", name: "<<joint->getName()
+                    <<", type: "<<joint->getJointType() << std::endl;
     }
 
     dart::dynamics::BodyNode* lGripperBodyNode = robotSkeleton->getBodyNode("lGripper");
@@ -214,19 +208,23 @@ void MyPlugin::printRobotInfo() {
 /**
  * \brief This functions returns current position of left gripper.
  * x : [OUT] 6-vector representing position of left gripper in world frame
-       in order (x, y, z, euler angles) */
-void MyPlugin::getLGripperPos(Eigen::Vector6d x, Krang::Vector7d q) {
-    std::cout<<__LINE__<<"I am inside "<<__func__<<"()"<<std::endl;
+       in order (x, y, z, euler angles)
+ * q : [OUT] pose in joint space */
+void MyPlugin::getLGripperPos(Eigen::Vector6d& x, Krang::Vector7d& q) {
+    std::cout<<__LINE__<<": I am inside "<<__func__<<"()"<<std::endl;
 
     dart::dynamics::Skeleton* robotSkeleton = _world->getSkeleton("Krang");
     dart::dynamics::BodyNode* lGripperBodyNode = 
                         robotSkeleton->getBodyNode("lGripper");
     // Pose of Left Gripper in World Frame
     Eigen::Isometry3d T_lGripper_world = lGripperBodyNode->getWorldTransform();
+
+    int nDepDofs = robotSkeleton->getBodyNode("Base")->getNumDependentDofs();
+    std::cout<<"Num of dependent DOFs for Base = " << nDepDofs << std::endl;
     
     // Convert trasform to state vector
     x = Krang::transformToEuler(T_lGripper_world);
-    q = robotSkeleton->getConfig( *(wsControl->arm_ids));
+    q = robotSkeleton->getConfig(Krang::left_arm_ids);
 }
 
 /**
@@ -234,11 +232,13 @@ void MyPlugin::getLGripperPos(Eigen::Vector6d x, Krang::Vector7d q) {
  * qDot : [IN] 7-vector joint velocity 
  * t    : [IN] time of the movement */
 void MyPlugin::moveArm(const Eigen::VectorXd qDot, float t) {
+    std::cout<<__LINE__<<": I am inside "<<__func__<<"()"<<std::endl;
+
     dart::dynamics::Skeleton* robotSkeleton = _world->getSkeleton("Krang");
-    Eigen::VectorXd q = robotSkeleton->getConfig(* wsControl->arm_ids);
+    Eigen::VectorXd q = robotSkeleton->getConfig(Krang::left_arm_ids);
 
     q = q + t * qDot;
-    robotSkeleton->setConfig(* wsControl->arm_ids, q);
+    robotSkeleton->setConfig(Krang::left_arm_ids, q);
 
     return;
 }
@@ -247,41 +247,41 @@ void MyPlugin::moveArm(const Eigen::VectorXd qDot, float t) {
  * \brief This functions is used to go to a given waypoint
  * xRef : [IN] 6-vector pose of waypoint (reference position for end-effector) 
           in the world frame */
-void MyPlugin::moveToWaypoint(const Eigen::VectorXd &xRef) {
+void MyPlugin::moveToWaypoint(const Eigen::Vector6d &xRef) {
+    std::cout<<__LINE__<<": I am inside "<<__func__<<"()"<<std::endl;
     
     Eigen::Vector6d x;   // current pose in world frame
-    Eigen::VectorXd q;   // current pose in joint space
+    Krang::Vector7d q;   // current pose in joint space
     
     getLGripperPos(x, q);
 
-    Eigen::VectorXd xDot;
-    Eigen::VectorXd qDot;
+    Eigen::Vector6d xDot;
+    Krang::Vector7d qDot;
 
-    // get the state of the robot (the position of end-effector)
-    /* First six values in _world->getState() and  
-    _world->getSkeleton("Krang")->getConfig() are same which is the pose of the
-    Krang robot. [0-5] maps to (x, y, z, roll, pitch, yaw)
-    See grip2/.../grip_interface.py 
-    Also see util.cpp for index details in config */
-
-    // cfg contains joint angles. Convert to task position using FK
+    std::cout<<"xRef = "<<xRef<<std::endl;
 
     // Set the reference position inside kore to be x
     wsControl->setReferencePose(xRef);
     wsControl->refWSVelocity(xDot);     // get task space velocity
-    
+
     // get null space bias for jacobian
-    Krang::Vector7d nullspace_q_ref;
+    Krang::Vector7d nullspace_q_ref(7);
     nullspace_q_ref <<  0, -1.0, 0, -0.5, 0, -0.8, 0;
 
-    Krang::Vector7d nullspace_q_mask;
+    Krang::Vector7d nullspace_q_mask(7);
     nullspace_q_mask << 0, 0, 0, 1, 0, 0, 0;
 
     Krang::Vector7d nullspace_qDot_ref;
     nullspace_qDot_ref = (nullspace_q_ref  - q).cwiseProduct(nullspace_q_mask);
 
-    // get joint space velocity
+    std::cout<<"Velocity in task space = "<<xDot.transpose()<<std::endl;
+
+    // get joint space velocity and move the arm
     wsControl->WSToJSVelocity(xDot, nullspace_qDot_ref, qDot);
+    std::cout<<"Velocity in joint space = "<<qDot.transpose()<<std::endl;
+
+    qDot = -qDot;
+    moveArm(qDot, 0.05);    // time in seconds
     return;
 }
 
@@ -289,7 +289,7 @@ void MyPlugin::moveToWaypoint(const Eigen::VectorXd &xRef) {
  * \brief This function initializes the WorkspaceControl class in kore library
  */
 void MyPlugin::graspInit() {
-
+    std::cout<<__LINE__<<": I am inside "<<__func__<<"()"<<std::endl;
     /* TODO: model of robot is required, from where to get it? Grip should have
     one. How to access that? */
     //wsCtrl = new Krang::WorkspaceControl()
@@ -297,10 +297,120 @@ void MyPlugin::graspInit() {
     x[0] = 0.0;
     x[1] = 0.0;
     x[2] = 0.0;
-    std::cout<<"I am inside graspInit()"<<std::endl;
     moveToWaypoint(x);
     return;
 }
+
+/************************
+  Unit test functions
+*************************/
+void MyPlugin::test_getLGripperPos(){
+    std::cout<<__LINE__<<": I am inside "<<__func__<<"()"<<std::endl;
+
+    /* Look for output in terminal window.
+    The numbers printed should make sense. */
+
+    Eigen::Vector6d x;   // current pose in world frame
+    Krang::Vector7d q;   // current pose in joint space
+    
+    getLGripperPos(x, q);
+
+    std::cout<<"Pose of left gripper in world frame: " << 
+                                                x.transpose()<<std::endl;
+    std::cout<<"Pose of left gripper in joint frame: " << 
+                                                q.transpose()<<std::endl;
+
+    return;
+}
+
+void MyPlugin::test_moveArm(){
+    std::cout<<__LINE__<<": I am inside "<<__func__<<"()"<<std::endl;
+
+    /* Verify the movements in grip visualization */
+    Eigen::VectorXd qDot(7);
+
+    /* joint nearest of waist must rotate by 0.5 radian */
+    //qDot << 1, 0, 0, 0 , 0 , 0, 0;
+
+    /* Alternate joints must rotate */
+    qDot << 1, 0, 1, 0 , 1 , 0, 1;//
+
+    /* Other alternate joints must rotate */
+    qDot << 0, 1, 0, 1, 0 , 1 , 0;
+    
+    moveArm(qDot, 0.5);
+    return;
+}
+
+volatile int xRefSet = 0;
+
+void MyPlugin::test_WSToJSVelocity(){
+
+    // Bring the robot arm out of singularity
+    static bool isInitialized = FALSE;
+    if(! isInitialized){
+        Eigen::VectorXd qDot(7);
+        qDot << 1, 1, 1, 1 , 1 , 1, 1;
+        moveArm(qDot, 0.5);
+
+        isInitialized = TRUE;
+
+        return;
+    }
+
+    Eigen::Vector6d xDot;
+    Krang::Vector7d qDot;
+    Krang::Vector7d nullspace_qDot_ref;
+    xDot << 0.2, 0, 0, 0, 0, 0;
+    nullspace_qDot_ref << 0, 0, 0, 0, 0, 0, 0;
+
+    // get joint space velocity
+    wsControl->WSToJSVelocity(xDot, nullspace_qDot_ref, qDot);
+
+    std::cout<<"xDot = "<<xDot.transpose()<<std::endl;
+    std::cout<<"qDot = "<<qDot.transpose()<<std::endl;
+
+    Eigen::Vector6d xDot1;
+    wsControl->JSToWSVelocity(qDot, xDot1 );
+    std::cout<<"J * qDot = "<<xDot1.transpose()<<std::endl;
+
+    moveArm(qDot, 0.10);
+
+    return;
+}
+
+void MyPlugin::test_moveToWaypoint(){
+    std::cout<<__LINE__<<": "<<__func__;
+
+    Eigen::Vector6d x;   // current pose in world frame
+    Krang::Vector7d q;   // current pose in joint space
+    
+    if(!xRefSet){
+        getLGripperPos(x, q);
+        //x[0] += 0.5; // x in meters
+        //x[2] += 0.5; // z in meters
+        // x << -0.5, 1.166, 0.5, 0, 0, 0;    
+        // x[0] = x[1] = x[2] = 0;
+        x[1] = x[1] +  0.2; // roll
+        xRefSet = 1;
+    }
+
+    // x << 0, 0, 0, 1.57, 0, 0;
+    std::cout<<__LINE__<<": x = "<<x.transpose()<<std::endl;
+    Eigen::Isometry3d xM = Krang::eulerToTransform(x);
+    std::cout<<__LINE__<<": xM = "<<Krang::transformToEuler(xM).transpose()<<std::endl;
+    
+    moveToWaypoint(x);
+    return;
+}
+
+/***********************************************************************
+OBSOLETE
+
+All functions after this line were written by Osayame and are now 
+obsolete.
+ - [Nehchal Feb 27, 2015]
+***********************************************************************/
 
 void MyPlugin::addValue() {
     Eigen::VectorXd newValues(1);
@@ -340,15 +450,6 @@ void MyPlugin::moveLeftArm() {
     robot->setConfig(indices, newValues);
 }
 **/
-
-
-/***********************************************************************
-OBSOLETE
-
-All functions after this line were written by Osayame and are now 
-obsolete.
- - [Nehchal Feb 27, 2015]
-***********************************************************************/
 
 void MyPlugin::moveLeftArm() {
     //Initialize vectors
@@ -500,10 +601,5 @@ void MyPlugin::seeRobotInfo() {
         std::cout<<"printing distance info :  \n"<<distance.norm()<<std::endl;     
  }
 }
-
-
-
-
-
 
 Q_EXPORT_PLUGIN2(MyPlugin, MyPlugin)

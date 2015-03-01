@@ -46,8 +46,8 @@ namespace Krang {
 // Setup the indices for the motor groups
 
 int base_ids_a [5] = {0, 1, 3, 5, 8};
-int left_arm_ids_a [7] = {11, 14, 16, 18, 20, 22, 24}; 
-int right_arm_ids_a [7] = {12, 15, 17, 19, 21, 23, 25}; 
+int left_arm_ids_a [7] = {12, 13, 14, 15, 16, 17, 18};
+int right_arm_ids_a [7] = {22, 23, 24, 25, 26, 27, 28};
 int imuWaist_ids_a [2] = {5, 8};
 int kinect_ids_a [2] = {10, 13};
 vector <int> left_arm_ids (left_arm_ids_a, left_arm_ids_a + 7);						
@@ -84,10 +84,12 @@ Eigen::VectorXd transformToEuler(const Eigen::Isometry3d &T) {
 Eigen::Isometry3d eulerToTransform(const Eigen::VectorXd &V) {
 
 	// Extract the translation
-	Eigen::Vector3d posV; posV << V[0], V[1], V[2];
+	Eigen::Vector3d posV; 
+	posV << V[0], V[1], V[2];
 
 	// Extract the rotation and make a matrix out of it
-	Eigen::Vector3d rotV; rotV << V[3], V[4], V[5];
+	Eigen::Vector3d rotV; 
+	rotV << V[3], V[4], V[5];
 	//Eigen::Matrix3d rotM = math::eulerToMatrix(rotV, _order);
 	Eigen::Matrix3d rotM = dart::math::eulerXYZToMatrix(rotV);
 

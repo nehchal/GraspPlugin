@@ -33,6 +33,13 @@
  * 
 	Terminology:
 		Task space and workspace mean the same thing.
+
+		In general, the task space vectors are in order
+				(x, y, z, roll, pitch, yaw)
+
+		and joint space vectors are in order (l stands for left)
+				(l1, l2, l3, l4, l5, l6, lGripper)
+		where l1 is link nearer to the waist of robot. 
  */
 
 #pragma once
@@ -50,7 +57,7 @@ public:
 
 	/// Constructor
 	// WorkspaceControl (dart::dynamics::Skeleton* robot, Side side, double _K_posRef_p, 
-	WorkspaceControl (dart::dynamics::BodyNode* endEffector, Side side, double _K_posRef_p, 
+	WorkspaceControl (dart::dynamics::BodyNode* endEffector, double _K_posRef_p, 
 			double nullspace_gain, double damping_gain, double ui_translation_gain, 
 			double ui_orientation_gain, double compliance_translation_gain, 
 			double compliance_orientation_gain);
@@ -61,21 +68,24 @@ public:
 	reference pose for the end-effector.
 	xdot : [IN] 6-vector of velocity in task space
 	dt   : [IN] the time over which to integrate velocity */
-	void integrateWSVelocityInput(const Eigen::VectorXd& xdot, const double dt);
+	void integrateWSVelocityInput(const Eigen::Vector6d& xdot, const double dt);
 
 	/// Returns a reference workspace velocity towards the integrated reference configuration from the
 	/// current end-effector configuration
 	/// xdot : [OUT] 6-vector of velociy in task space
-	void refWSVelocity(Eigen::VectorXd& xdot);
+	void refWSVelocity(Eigen::Vector6d& xdot);
+
+	void JSToWSVelocity(const Krang::Vector7d& qDot, Eigen::Vector6d& xDot);
 
 	/// Returns a reference joint space velocity from the given workspace velocity, biasing towards the
 	/// the given joint space velocity. Joint space has 7 DOFs and task space has 6 DOFs. So, multiple 
 	/// solutions. So, the joint space solution can be biased.
 	/// xdot 	 : [IN] 6-vector of velocity in task space
 	/// qdot_null: [IN] 7-vector representing the bias.
-	/// qdot     : [OUT] 6-vector velocity in joint space
-	void WSToJSVelocity(const Eigen::VectorXd& xdot, const Eigen::VectorXd& qdot_nullspace, 
-			Eigen::VectorXd& qdot);
+	/// qdot     : [OUT] 7-vector velocity in joint space
+	void WSToJSVelocity(const Eigen::Vector6d& xdot, 
+							const Krang::Vector7d& qdot_nullspace,
+								Krang::Vector7d& qdot);
 
 	/* Returns the reference jointspace velocity incorporating the ui device and f/t sensor values.
 	The velocity input from ui device is scaled to workspace velocity.
@@ -84,8 +94,9 @@ public:
 	/// qdot_secondary: [IN] 7-vector representing the bias
 	/// dt:				[IN] the time step
 	/// qdot:		    [OUT] 6-vector velocity in joint space */
-	void updateFromUIVel(const Eigen::VectorXd& ui, const Eigen::VectorXd& ft,
-											 const Eigen::VectorXd& qdot_secondary, double dt, Eigen::VectorXd& qdot);
+	void updateFromUIVel(const Eigen::Vector6d& ui, const Eigen::Vector6d& ft,
+							const Krang::Vector7d& qdot_secondary, double dt, 
+							 	Krang::Vector7d& qdot);
 
 	/* Returns the reference jointspace velocity using given task space 
 	velocity and external force and torque sensor values
@@ -94,8 +105,9 @@ public:
 	/// qdot_secondary: [IN] 7-vector representing the bias
 	/// dt:				[IN] the time step
 	/// qdot:		    [OUT] 6-vector velocity in joint space */
-	void updateFromXdot(const Eigen::VectorXd& xdot, const Eigen::VectorXd& ft,
-											 const Eigen::VectorXd& qdot_secondary, double dt, Eigen::VectorXd& qdot);
+	void updateFromXdot(const Eigen::Vector6d& xdot, const Eigen::Vector6d& ft,
+							const Krang::Vector7d& qdot_secondary, 
+								double dt, Krang::Vector7d& qdot);
 
 	/* Returns the reference jointspace velocity incorporating position input
 	from the ui device and f/t sensor values
@@ -104,8 +116,9 @@ public:
 	/// qdot_secondary: [IN] 7-vector representing the bias
 	/// dt:				[IN] the time step
 	/// qdot:		    [OUT] 6-vector velocity in joint space */
-	void updateFromUIPos(const Eigen::VectorXd& xref, const Eigen::VectorXd& ft,
-											 const Eigen::VectorXd& qdot_secondary, Eigen::VectorXd& qdot);
+	void updateFromUIPos(const Eigen::Vector6d& xref, const Eigen::Vector6d& ft,
+							const Krang::Vector7d& qdot_secondary, 
+								Krang::Vector7d& qdot);
 
 	/// Sets the workspace controller's goal as the current end effector pose
 	void resetReferenceTransform();
@@ -113,11 +126,11 @@ public:
 	/// Sets the reference pose of the end-effector.
 	/// xRef : [IN] 6-vector representing pose of end-effector in world frame.
 	///			    in order (x, y, z, roll, pitch, yaw)
-	void setReferencePose(const Eigen::VectorXd& xRef);
+	void setReferencePose(const Eigen::Vector6d& xRef);
 
 	/// Transforms a velocity-space user interface input into a
 	/// workspace velocity
-	Eigen::VectorXd uiInputVelToXdot(const Eigen::VectorXd& ui_vel);
+	Eigen::Vector6d uiInputVelToXdot(const Eigen::Vector6d& ui_vel);
 
 public:
 	// Variables that represent the state of the end-effector or how we can control it
@@ -125,7 +138,7 @@ public:
 	//Eigen::Matrix4d Tref;				///< The integrated or set configuration reference
 	Eigen::Isometry3d Tref;
 	dart::dynamics::BodyNode* endEffector;	///< The end-effector whose configuration we control
-	std::vector<int>* arm_ids;			///< The arm indices that the controller can manipulate
+	// std::vector<int>* arm_ids;			///< The arm indices that the controller can manipulate
 	bool debug_to_cout;					///< Verbosity for printing debug to standard output
 	bool debug_to_curses;				///< Verbosity for printing debug to curses
 

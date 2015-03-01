@@ -43,6 +43,12 @@
 #include <dynamics/BodyNode.h>
 #include <math/MathTypes.h>
 
+#define LEFT 0
+#define RIGHT 1
+
+//const int g_invType = LEFT;
+ const int g_invType = RIGHT;
+
 namespace Krang {
 
 	/* ******************************************************************************************** */
@@ -149,7 +155,7 @@ namespace Krang {
 	/* ******************************************************************************************** */
 	void WorkspaceControl::WSToJSVelocity(const Eigen::Vector6d& xdot,
 	                                     	const Krang::Vector7d& qdot_nullspace, 
-	                                     		Krang::Vector7d& qdot) {
+	                                     	  Krang::Vector7d& qdot) {
 		// Get the Jacobian for the end-effector
 		//Eigen::MatrixXd Jlin = endEffector->getJacobianLinear().topRightCorner<3,7>();
 		//Eigen::MatrixXd Jang = endEffector->getJacobianAngular().topRightCorner<3,7>();
@@ -160,13 +166,14 @@ namespace Krang {
 		//std::cout<<"Body Jacobian ="<<std::endl;
 		//DISPLAY_MATRIX(J)
 
-		dart::math::Jacobian JFull= endEffector->getWorldJacobian();	// this is 6 x 15 matrix
+		//dart::math::Jacobian JFull= endEffector->getWorldJacobian();	// this is 6 x 15 matrix
+		dart::math::Jacobian JFull= endEffector->getBodyJacobian();	// this is 6 x 15 matrix
 		dart::math::Jacobian J = JFull.topRightCorner<6, 7>();
 		//dart::math::Jacobian J = JFull.topLeftCorner<6, 7>();
 		
 		// std::cout<<__LINE__<<" rows in World Jacobian= "<<J.rows()<<" cols ="<<J.cols()<<std::endl;
-		std::cout<<"World Jacobian ="<<std::endl;
-		DISPLAY_MATRIX(J)
+		//std::cout<<"World Jacobian ="<<std::endl;
+		//DISPLAY_MATRIX(J)
 		/*
 		int n = endEffector->getNumDependentDofs();
 		std::cout<<"Num of dependent dofs = "<<n<<std::endl;
@@ -186,22 +193,19 @@ namespace Krang {
 
 		// Compute the inverse of the Jacobian with dampening
 		Eigen::MatrixXd Jt = J.transpose();
-		Eigen::MatrixXd JtJ = Jt * J;
-		std::cout<<"Jt * J ="<<std::endl;
-		DISPLAY_MATRIX(JtJ)
+		Eigen::MatrixXd Jinv;
 
-		for(int i = 0; i < JtJ.rows(); i++) JtJ(i,i) += damping_gain;
+		if(g_invType == LEFT){
+			Eigen::MatrixXd temp = Jt * J;
+			for(int i = 0; i < temp.rows(); i++) temp(i,i) += damping_gain;
+			Jinv = (temp.inverse()) * Jt;
+		}
 
-		//Eigen::MatrixXd JJtinv = JJt;
-		//aa_la_inv(6, JJtinv.data());
-		//Eigen::MatrixXd Jinv = Jt * JJtinv;
-		Eigen::MatrixXd JtJ_inv = JtJ.inverse();
-		std::cout<<"Inv(JJt) ="<<std::endl;
-		DISPLAY_MATRIX(JtJ_inv);
-
-		Eigen::MatrixXd Jinv = JtJ_inv * Jt;
-		std::cout<<"Inverse Jacobian ="<<std::endl;
-		DISPLAY_MATRIX(Jinv)
+		else {
+			Eigen::MatrixXd temp = J * Jt;
+			for(int i = 0; i < temp.rows(); i++) temp(i,i) += damping_gain;
+			Jinv = Jt * (temp.inverse());
+		}
 
 		// Compute the joint velocities qdot using the input xdot and a qdot for the secondary goal 
 		// projected into the nullspace

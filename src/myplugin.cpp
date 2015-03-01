@@ -62,8 +62,8 @@
  // initializers for the workspace control constants
 const double K_WORKERR_P = 1.00;
 const double NULLSPACE_GAIN = 0.1;
-const double DAMPING_GAIN = 0.005;
-//const double DAMPING_GAIN = 0.000;
+//const double DAMPING_GAIN = 0.005;
+const double DAMPING_GAIN = 0.000;
 const double SPACENAV_ORIENTATION_GAIN = 0.50; // maximum 50 cm per second from spacenav
 const double SPACENAV_TRANSLATION_GAIN = 0.25; // maximum .25 radians per second from spacenav
 const double COMPLIANCE_TRANSLATION_GAIN = 1.0 / 750.0;
@@ -237,7 +237,10 @@ void MyPlugin::moveArm(const Eigen::VectorXd qDot, float t) {
     dart::dynamics::Skeleton* robotSkeleton = _world->getSkeleton("Krang");
     Eigen::VectorXd q = robotSkeleton->getConfig(Krang::left_arm_ids);
 
+    std::cout<<"qDot = "<<qDot.transpose();
+    std::cout<<"q before moving = "<<q.transpose()<<std::endl;
     q = q + t * qDot;
+    std::cout<<"q after moving = "<<q.transpose()<<std::endl;;
     robotSkeleton->setConfig(Krang::left_arm_ids, q);
 
     return;
@@ -336,7 +339,8 @@ void MyPlugin::test_moveArm(){
     qDot << 1, 0, 1, 0 , 1 , 0, 1;//
 
     /* Other alternate joints must rotate */
-    qDot << 0, 1, 0, 1, 0 , 1 , 0;
+    //qDot << 0, 1, 0, 1, 0 , 1 , 0;
+    std::cout<<"qDot = "<<qDot.transpose()<<std::endl;
     
     moveArm(qDot, 0.5);
     return;
@@ -361,7 +365,7 @@ void MyPlugin::test_WSToJSVelocity(){
     Eigen::Vector6d xDot;
     Krang::Vector7d qDot;
     Krang::Vector7d nullspace_qDot_ref;
-    xDot << 0.2, 0, 0, 0, 0, 0;
+    xDot << 0.02, 0, 0, 0, 0, 0;
     nullspace_qDot_ref << 0, 0, 0, 0, 0, 0, 0;
 
     // get joint space velocity
@@ -373,6 +377,9 @@ void MyPlugin::test_WSToJSVelocity(){
     Eigen::Vector6d xDot1;
     wsControl->JSToWSVelocity(qDot, xDot1 );
     std::cout<<"J * qDot = "<<xDot1.transpose()<<std::endl;
+
+    wsControl->WSToJSVelocity(xDot1, nullspace_qDot_ref, qDot);
+    std::cout<<"Jinv * (J * qDot) = "<<qDot.transpose()<<std::endl;
 
     moveArm(qDot, 0.10);
 

@@ -47,6 +47,7 @@
 #include "util.hpp"
 #include <dynamics/Skeleton.h>
 
+
 namespace Krang {
 
 /// The interface workspace control - most importatly contains the reference pose for the
@@ -82,7 +83,9 @@ public:
 	/// solutions. So, the joint space solution can be biased.
 	/// xdot 	 : [IN] 6-vector of velocity in task space
 	/// qdot_null: [IN] 7-vector representing the bias.
-	/// qdot     : [OUT] 7-vector velocity in joint space
+	/// invType	 : [IN] type of Jacobian inverse to use. WORKSPACECONTORL_LEFT 
+	///					or WORKSPACECONTORL_RIGHT
+	/// qdot     : [OUT] 7-vector velocity in joint space 
 	void WSToJSVelocity(const Eigen::Vector6d& xdot, 
 							const Krang::Vector7d& qdot_nullspace,
 								Krang::Vector7d& qdot);
